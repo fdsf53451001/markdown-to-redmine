@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redmine ↔ Markdown 轉換器</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 5px;
+            font-size: clamp(1.2rem, 5vw, 2rem);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 15px;
+            font-size: clamp(0.7rem, 2.5vw, 0.95rem);
+        }
+
+        .tabs {
+            display: none;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 8px;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .converter-container {
+            display: flex;
+            gap: 15px;
+            align-items: stretch;
+        }
+
+        .panel {
+            flex: 1;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .panel-title {
+            font-size: clamp(0.9rem, 3vw, 1.1rem);
+            font-weight: 600;
+            color: #333;
+        }
+
+        .direction-controls {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            padding: 0 5px;
+        }
+
+        .convert-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: clamp(0.75rem, 2.5vw, 0.9rem);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+            white-space: nowrap;
+            min-width: 100px;
+        }
+
+        .convert-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.6);
+        }
+
+        .convert-btn:active {
+            transform: translateY(0);
+        }
+
+        textarea {
+            flex: 1;
+            min-height: 250px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: clamp(11px, 2.5vw, 13px);
+            line-height: 1.5;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .copy-btn, .clear-btn {
+            flex: 1;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover, .clear-btn:hover {
+            background: #e8e8e8;
+        }
+
+        .copy-btn.copied {
+            background: #4caf50;
+            color: white;
+            border-color: #4caf50;
+        }
+
+        .mobile-controls {
+            display: none;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .mobile-controls .convert-btn {
+            flex: 1;
+            padding: 14px;
+        }
+
+        .examples {
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+        }
+
+        .examples h2 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: clamp(0.9rem, 3vw, 1.1rem);
+        }
+
+        .example-toggle {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        .example-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .example-col h3 {
+            color: #666;
+            font-size: clamp(0.8rem, 2.5vw, 0.95rem);
+            margin-bottom: 8px;
+        }
+
+        .example-col pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: clamp(10px, 2vw, 12px);
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        @media (max-width: 900px) {
+            .converter-container {
+                flex-direction: column;
+            }
+            .direction-controls {
+                flex-direction: row;
+                padding: 10px 0;
+            }
+            .example-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 500px) {
+            body { padding: 8px; }
+            h1 { font-size: 1.1rem; }
+            .subtitle { font-size: 0.7rem; margin-bottom: 10px; }
+            .tabs { display: flex; }
+            .converter-container { flex-direction: column; gap: 0; }
+            .panel { border-radius: 0 0 10px 10px; }
+            .panel.hidden { display: none; }
+            .panel:first-child { border-radius: 0; }
+            .direction-controls { display: none; }
+            .mobile-controls { display: flex; }
+            textarea { min-height: 200px; }
+            .examples { margin-top: 15px; padding: 12px; }
+            .example-content { display: none; }
+            .example-content.show { display: block; }
+        }
+
+        @media (max-width: 350px) {
+            body { padding: 5px; }
+            h1 { font-size: 1rem; }
+            .panel { padding: 8px; }
+            textarea { min-height: 180px; font-size: 11px; padding: 8px; }
+            .convert-btn { padding: 10px 12px; font-size: 0.7rem; }
+            .btn-row { flex-direction: column; gap: 5px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Redmine ↔ Markdown</h1>
+        <p class="subtitle">雙向格式轉換工具</p>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('redmine')">Redmine</button>
+            <button class="tab-btn" onclick="showTab('markdown')">Markdown</button>
+        </div>
+
+        <div class="converter-container">
+            <div class="panel" id="redmine-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Redmine (Textile)</span>
+                </div>
+                <textarea id="redmine-input" placeholder="輸入 Redmine 格式...
+
+h1. 標題
+*粗體* _斜體_
+* 列表項目
+# 編號列表
+&quot;連結文字&quot;:https://example.com"></textarea>
+                <div class="btn-row">
+                    <button class="copy-btn" onclick="copyText('redmine-input')">複製</button>
+                    <button class="clear-btn" onclick="clearText('redmine-input')">清除</button>
+                </div>
+            </div>
+
+            <div class="direction-controls">
+                <button class="convert-btn" onclick="convert('redmine_to_markdown')">→ Markdown</button>
+                <button class="convert-btn" onclick="convert('markdown_to_redmine')">← Redmine</button>
+            </div>
+
+            <div class="panel" id="markdown-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Markdown</span>
+                </div>
+                <textarea id="markdown-input" placeholder="輸入 Markdown 格式...
+
+# 標題
+**粗體** *斜體*
+- 列表項目
+1. 編號列表
+[連結文字](https://example.com)"></textarea>
+                <div class="btn-row">
+                    <button class="copy-btn" onclick="copyText('markdown-input')">複製</button>
+                    <button class="clear-btn" onclick="clearText('markdown-input')">清除</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mobile-controls">
+            <button class="convert-btn" onclick="convert('redmine_to_markdown')">Redmine → Markdown</button>
+            <button class="convert-btn" onclick="convert('markdown_to_redmine')">Markdown → Redmine</button>
+        </div>
+
+        <div class="examples">
+            <h2>格式對照表</h2>
+            <button class="example-toggle" onclick="toggleExamples()">顯示/隱藏範例</button>
+            <div class="example-content" id="example-content">
+                <div class="example-grid">
+                    <div class="example-col">
+                        <h3>Redmine Textile</h3>
+                        <pre>h1. 標題 1
+h2. 標題 2
+
+*粗體* _斜體_
+-刪除線- +底線+
+
+* 無序列表
+** 巢狀項目
+# 有序列表
+
+"連結":https://example.com
+[[Wiki頁面]]
+
+!image.png!
+@行內程式碼@
+
+<pre>程式區塊</pre>
+
+bq. 引用文字
+
+|_. 表頭1 |_. 表頭2 |
+| 內容1 | 內容2 |</pre>
+                    </div>
+                    <div class="example-col">
+                        <h3>Markdown</h3>
+                        <pre># 標題 1
+## 標題 2
+
+**粗體** *斜體*
+~~刪除線~~ &lt;u&gt;底線&lt;/u&gt;
+
+- 無序列表
+  - 巢狀項目
+1. 有序列表
+
+[連結](https://example.com)
+[Wiki頁面](Wiki頁面)
+
+![](image.png)
+`行內程式碼`
+
+```
+程式區塊
+```
+
+> 引用文字
+
+| 表頭1 | 表頭2 |
+|-------|-------|
+| 內容1 | 內容2 |</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Converter functions
+        function redmineToMarkdown(text) {
+            if (!text) return "";
+            let result = text;
+
+            // Preserve code blocks
+            const codeBlocks = [];
+            result = result.replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/g, (m, code) => {
+                codeBlocks.push(code);
+                return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+            });
+            result = result.replace(/<pre>([\s\S]*?)<\/pre>/g, (m, code) => {
+                codeBlocks.push(code);
+                return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+            });
+
+            // Preserve inline code
+            const inlineCodes = [];
+            result = result.replace(/@([^@\n]+)@/g, (m, code) => {
+                inlineCodes.push(code);
+                return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+            });
+
+            // Ordered lists FIRST (before headers)
+            result = result.replace(/^(#+)\s+(.+)$/gm, (m, hashes, content) => {
+                const indent = "  ".repeat(hashes.length - 1);
+                return `__OL__${indent}1. ${content}`;
+            });
+
+            // Headers
+            result = result.replace(/^h1\.\s*(.+)$/gm, '# $1');
+            result = result.replace(/^h2\.\s*(.+)$/gm, '## $1');
+            result = result.replace(/^h3\.\s*(.+)$/gm, '### $1');
+            result = result.replace(/^h4\.\s*(.+)$/gm, '#### $1');
+            result = result.replace(/^h5\.\s*(.+)$/gm, '##### $1');
+            result = result.replace(/^h6\.\s*(.+)$/gm, '###### $1');
+
+            // Remove OL marker
+            result = result.replace(/__OL__/g, '');
+
+            // Bold: *text* -> **text**
+            result = result.replace(/(?<!\S)\*([^\*\n]+)\*(?!\S)/g, '**$1**');
+
+            // Italic: _text_ -> *text*
+            result = result.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, '*$1*');
+
+            // Strikethrough: -text- -> ~~text~~
+            result = result.replace(/(?<!\S)-([^\-\n]+)-(?!\S)/g, '~~$1~~');
+
+            // Underline: +text+ -> <u>text</u>
+            result = result.replace(/(?<!\S)\+([^\+\n]+)\+(?!\S)/g, '<u>$1</u>');
+
+            // Links: "text":url -> [text](url)
+            result = result.replace(/"([^"]+)":(\S+)/g, '[$1]($2)');
+
+            // Wiki links
+            result = result.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '[$2]($1)');
+            result = result.replace(/\[\[([^\]]+)\]\]/g, '[$1]($1)');
+
+            // Images: !image.png! -> ![](image.png)
+            result = result.replace(/!([^\s!]+)!/g, '![]($1)');
+
+            // Unordered lists
+            result = result.replace(/^(\*+)\s+(.+)$/gm, (m, asterisks, content) => {
+                const indent = "  ".repeat(asterisks.length - 1);
+                return `${indent}- ${content}`;
+            });
+
+            // Blockquote
+            result = result.replace(/^bq\.\s*(.+)$/gm, '> $1');
+
+            // Tables
+            result = result.replace(/((?:^\|.+\|\s*\n?)+)/gm, (tableText) => {
+                const lines = tableText.trim().split('\n');
+                const resultLines = [];
+                for (const line of lines) {
+                    if (line.includes('|_.')) {
+                        const converted = line.replace(/\|_\./g, '|');
+                        resultLines.push(converted);
+                        const cells = (converted.match(/\|/g) || []).length - 1;
+                        resultLines.push('|' + '---|'.repeat(cells));
+                    } else {
+                        resultLines.push(line);
+                    }
+                }
+                return resultLines.join('\n');
+            });
+
+            // Restore code blocks
+            codeBlocks.forEach((code, i) => {
+                result = result.replace(`__CODE_BLOCK_${i}__`, "```\n" + code + "\n```");
+            });
+
+            // Restore inline code
+            inlineCodes.forEach((code, i) => {
+                result = result.replace(`__INLINE_CODE_${i}__`, "`" + code + "`");
+            });
+
+            return result;
+        }
+
+        function markdownToRedmine(text) {
+            if (!text) return "";
+            let result = text;
+
+            // Preserve code blocks
+            const codeBlocks = [];
+            result = result.replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => {
+                codeBlocks.push({ lang, code });
+                return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+            });
+
+            // Preserve inline code
+            const inlineCodes = [];
+            result = result.replace(/`([^`\n]+)`/g, (m, code) => {
+                inlineCodes.push(code);
+                return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+            });
+
+            // Images FIRST
+            result = result.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '!$2!');
+
+            // Headers
+            result = result.replace(/^###### (.+)$/gm, 'h6. $1');
+            result = result.replace(/^##### (.+)$/gm, 'h5. $1');
+            result = result.replace(/^#### (.+)$/gm, 'h4. $1');
+            result = result.replace(/^### (.+)$/gm, 'h3. $1');
+            result = result.replace(/^## (.+)$/gm, 'h2. $1');
+            result = result.replace(/^# (.+)$/gm, 'h1. $1');
+
+            // Bold with placeholder
+            result = result.replace(/\*\*([^\*]+)\*\*/g, '__BOLD__$1__ENDBOLD__');
+
+            // Italic
+            result = result.replace(/(?<!\*)\*([^\*]+)\*(?!\*)/g, '_$1_');
+
+            // Restore bold
+            result = result.replace(/__BOLD__(.+?)__ENDBOLD__/g, '*$1*');
+
+            // Strikethrough
+            result = result.replace(/~~([^~]+)~~/g, '-$1-');
+
+            // Underline
+            result = result.replace(/<u>([^<]+)<\/u>/g, '+$1+');
+
+            // Links
+            result = result.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '"$1":$2');
+
+            // Unordered lists
+            result = result.replace(/^(\s*)[-\*]\s+(.+)$/gm, (m, indent, content) => {
+                const level = Math.floor(indent.length / 2) + 1;
+                return '*'.repeat(level) + ' ' + content;
+            });
+
+            // Ordered lists
+            result = result.replace(/^(\s*)\d+\.\s+(.+)$/gm, (m, indent, content) => {
+                const level = Math.floor(indent.length / 2) + 1;
+                return '#'.repeat(level) + ' ' + content;
+            });
+
+            // Blockquote
+            result = result.replace(/^>\s*(.+)$/gm, 'bq. $1');
+
+            // Tables
+            result = result.replace(/((?:^\|.+\|\s*\n?)+)/gm, (tableText) => {
+                const lines = tableText.trim().split('\n');
+                const resultLines = [];
+                let isFirstRow = true;
+                for (const line of lines) {
+                    if (/^\|[\s\-:|]+\|$/.test(line)) continue;
+                    if (isFirstRow) {
+                        resultLines.push(line.replace(/\|([^|]+)/g, '|_.$1'));
+                        isFirstRow = false;
+                    } else {
+                        resultLines.push(line);
+                    }
+                }
+                return resultLines.join('\n');
+            });
+
+            // Restore code blocks
+            codeBlocks.forEach(({ lang, code }, i) => {
+                result = result.replace(`__CODE_BLOCK_${i}__`, `<pre><code class="${lang}">\n${code}</code></pre>`);
+            });
+
+            // Restore inline code
+            inlineCodes.forEach((code, i) => {
+                result = result.replace(`__INLINE_CODE_${i}__`, `@${code}@`);
+            });
+
+            return result;
+        }
+
+        // UI functions
+        function showTab(tab) {
+            const tabs = document.querySelectorAll('.tab-btn');
+            const redminePanel = document.getElementById('redmine-panel');
+            const markdownPanel = document.getElementById('markdown-panel');
+
+            tabs.forEach(t => t.classList.remove('active'));
+
+            if (tab === 'redmine') {
+                tabs[0].classList.add('active');
+                redminePanel.classList.remove('hidden');
+                markdownPanel.classList.add('hidden');
+            } else {
+                tabs[1].classList.add('active');
+                redminePanel.classList.add('hidden');
+                markdownPanel.classList.remove('hidden');
+            }
+        }
+
+        function toggleExamples() {
+            document.getElementById('example-content').classList.toggle('show');
+        }
+
+        function convert(direction) {
+            const redmineInput = document.getElementById('redmine-input');
+            const markdownInput = document.getElementById('markdown-input');
+
+            if (direction === 'redmine_to_markdown') {
+                markdownInput.value = redmineToMarkdown(redmineInput.value);
+                if (window.innerWidth <= 500) showTab('markdown');
+            } else {
+                redmineInput.value = markdownToRedmine(markdownInput.value);
+                if (window.innerWidth <= 500) showTab('redmine');
+            }
+        }
+
+        function copyText(elementId) {
+            const textarea = document.getElementById(elementId);
+            textarea.select();
+            document.execCommand('copy');
+
+            const btn = textarea.parentElement.querySelector('.copy-btn');
+            btn.textContent = '已複製!';
+            btn.classList.add('copied');
+
+            setTimeout(() => {
+                btn.textContent = '複製';
+                btn.classList.remove('copied');
+            }, 2000);
+        }
+
+        function clearText(elementId) {
+            document.getElementById(elementId).value = '';
+        }
+
+        // Initialize
+        if (window.innerWidth > 500) {
+            document.getElementById('example-content').classList.add('show');
+        }
+    </script>
+</body>
+</html>
