@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redmine ↔ Markdown</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 5px;
+            font-size: clamp(1.2rem, 5vw, 2rem);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 15px;
+            font-size: clamp(0.7rem, 2.5vw, 0.95rem);
+        }
+
+        /* Tab navigation for narrow screens */
+        .tabs {
+            display: none;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 8px;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .converter-container {
+            display: flex;
+            gap: 15px;
+            align-items: stretch;
+        }
+
+        .panel {
+            flex: 1;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .panel-title {
+            font-size: clamp(0.9rem, 3vw, 1.1rem);
+            font-weight: 600;
+            color: #333;
+        }
+
+        .direction-controls {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            padding: 0 5px;
+        }
+
+        .convert-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: clamp(0.75rem, 2.5vw, 0.9rem);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+            white-space: nowrap;
+            min-width: 100px;
+        }
+
+        .convert-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.6);
+        }
+
+        .convert-btn:active {
+            transform: translateY(0);
+        }
+
+        textarea {
+            flex: 1;
+            min-height: 250px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: clamp(11px, 2.5vw, 13px);
+            line-height: 1.5;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .copy-btn, .clear-btn {
+            flex: 1;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover, .clear-btn:hover {
+            background: #e8e8e8;
+        }
+
+        .copy-btn.copied {
+            background: #4caf50;
+            color: white;
+            border-color: #4caf50;
+        }
+
+        /* Mobile convert buttons (shown below panels) */
+        .mobile-controls {
+            display: none;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .mobile-controls .convert-btn {
+            flex: 1;
+            padding: 14px;
+        }
+
+        .examples {
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+        }
+
+        .examples h2 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: clamp(0.9rem, 3vw, 1.1rem);
+        }
+
+        .example-toggle {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        .example-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .example-col h3 {
+            color: #666;
+            font-size: clamp(0.8rem, 2.5vw, 0.95rem);
+            margin-bottom: 8px;
+        }
+
+        .example-col pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: clamp(10px, 2vw, 12px);
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            display: none;
+            font-size: 0.85rem;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        /* Tablet: Stack panels vertically */
+        @media (max-width: 900px) {
+            .converter-container {
+                flex-direction: column;
+            }
+
+            .direction-controls {
+                flex-direction: row;
+                padding: 10px 0;
+            }
+
+            .example-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Narrow sidebar view: <= 500px */
+        @media (max-width: 500px) {
+            body {
+                padding: 8px;
+            }
+
+            h1 {
+                font-size: 1.1rem;
+            }
+
+            .subtitle {
+                font-size: 0.7rem;
+                margin-bottom: 10px;
+            }
+
+            .tabs {
+                display: flex;
+            }
+
+            .converter-container {
+                flex-direction: column;
+                gap: 0;
+            }
+
+            .panel {
+                border-radius: 0 0 10px 10px;
+            }
+
+            .panel.hidden {
+                display: none;
+            }
+
+            .panel:first-child {
+                border-radius: 0;
+            }
+
+            .direction-controls {
+                display: none;
+            }
+
+            .mobile-controls {
+                display: flex;
+            }
+
+            textarea {
+                min-height: 200px;
+            }
+
+            .examples {
+                margin-top: 15px;
+                padding: 12px;
+            }
+
+            .example-content {
+                display: none;
+            }
+
+            .example-content.show {
+                display: block;
+            }
+        }
+
+        /* Very narrow: <= 350px */
+        @media (max-width: 350px) {
+            body {
+                padding: 5px;
+            }
+
+            h1 {
+                font-size: 1rem;
+            }
+
+            .panel {
+                padding: 8px;
+            }
+
+            textarea {
+                min-height: 180px;
+                font-size: 11px;
+                padding: 8px;
+            }
+
+            .convert-btn {
+                padding: 10px 12px;
+                font-size: 0.7rem;
+            }
+
+            .btn-row {
+                flex-direction: column;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Redmine ↔ Markdown</h1>
+        <p class="subtitle">雙向格式轉換工具</p>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('redmine')">Redmine</button>
+            <button class="tab-btn" onclick="showTab('markdown')">Markdown</button>
+        </div>
+
+        <div class="converter-container">
+            <div class="panel" id="redmine-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Redmine (Textile)</span>
+                </div>
+                <textarea id="redmine-input" placeholder="輸入 Redmine 格式...
+
+h1. 標題
+*粗體* _斜體_
+* 列表項目
+# 編號列表
+&quot;連結文字&quot;:https://example.com"></textarea>
+                <div class="btn-row">
+                    <button class="copy-btn" onclick="copyText('redmine-input')">複製</button>
+                    <button class="clear-btn" onclick="clearText('redmine-input')">清除</button>
+                </div>
+            </div>
+
+            <div class="direction-controls">
+                <button class="convert-btn" onclick="convert('redmine_to_markdown')">→ Markdown</button>
+                <button class="convert-btn" onclick="convert('markdown_to_redmine')">← Redmine</button>
+            </div>
+
+            <div class="panel" id="markdown-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Markdown</span>
+                </div>
+                <textarea id="markdown-input" placeholder="輸入 Markdown 格式...
+
+# 標題
+**粗體** *斜體*
+- 列表項目
+1. 編號列表
+[連結文字](https://example.com)"></textarea>
+                <div class="btn-row">
+                    <button class="copy-btn" onclick="copyText('markdown-input')">複製</button>
+                    <button class="clear-btn" onclick="clearText('markdown-input')">清除</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mobile-controls">
+            <button class="convert-btn" onclick="convert('redmine_to_markdown')">Redmine → Markdown</button>
+            <button class="convert-btn" onclick="convert('markdown_to_redmine')">Markdown → Redmine</button>
+        </div>
+
+        <div id="error" class="error"></div>
+
+        <div class="examples">
+            <h2>格式對照表</h2>
+            <button class="example-toggle" onclick="toggleExamples()">顯示/隱藏範例</button>
+            <div class="example-content" id="example-content">
+                <div class="example-grid">
+                    <div class="example-col">
+                        <h3>Redmine Textile</h3>
+                        <pre>h1. 標題 1
+h2. 標題 2
+
+*粗體* _斜體_
+-刪除線- +底線+
+
+* 無序列表
+** 巢狀項目
+# 有序列表
+
+"連結":https://example.com
+[[Wiki頁面]]
+
+!image.png!
+@行內程式碼@
+
+<pre>程式區塊</pre>
+
+bq. 引用文字
+
+|_. 表頭1 |_. 表頭2 |
+| 內容1 | 內容2 |</pre>
+                    </div>
+                    <div class="example-col">
+                        <h3>Markdown</h3>
+                        <pre># 標題 1
+## 標題 2
+
+**粗體** *斜體*
+~~刪除線~~ <u>底線</u>
+
+- 無序列表
+  - 巢狀項目
+1. 有序列表
+
+[連結](https://example.com)
+[Wiki頁面](Wiki頁面)
+
+![](image.png)
+`行內程式碼`
+
+```
+程式區塊
+```
+
+> 引用文字
+
+| 表頭1 | 表頭2 |
+|-------|-------|
+| 內容1 | 內容2 |</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching for narrow screens
+        function showTab(tab) {
+            const tabs = document.querySelectorAll('.tab-btn');
+            const redminePanel = document.getElementById('redmine-panel');
+            const markdownPanel = document.getElementById('markdown-panel');
+
+            tabs.forEach(t => t.classList.remove('active'));
+
+            if (tab === 'redmine') {
+                tabs[0].classList.add('active');
+                redminePanel.classList.remove('hidden');
+                markdownPanel.classList.add('hidden');
+            } else {
+                tabs[1].classList.add('active');
+                redminePanel.classList.add('hidden');
+                markdownPanel.classList.remove('hidden');
+            }
+        }
+
+        // Toggle examples visibility
+        function toggleExamples() {
+            const content = document.getElementById('example-content');
+            content.classList.toggle('show');
+        }
+
+        // Initialize examples as hidden on mobile
+        if (window.innerWidth <= 500) {
+            document.getElementById('example-content').classList.remove('show');
+        } else {
+            document.getElementById('example-content').classList.add('show');
+        }
+
+        async function convert(direction) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.classList.remove('show');
+
+            let inputId, outputId;
+            if (direction === 'redmine_to_markdown') {
+                inputId = 'redmine-input';
+                outputId = 'markdown-input';
+            } else {
+                inputId = 'markdown-input';
+                outputId = 'redmine-input';
+            }
+
+            const text = document.getElementById(inputId).value;
+
+            try {
+                const response = await fetch('/api/convert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text, direction }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById(outputId).value = data.result;
+                    // On mobile, switch to the output tab
+                    if (window.innerWidth <= 500) {
+                        showTab(direction === 'redmine_to_markdown' ? 'markdown' : 'redmine');
+                    }
+                } else {
+                    errorDiv.textContent = data.error || '轉換失敗';
+                    errorDiv.classList.add('show');
+                }
+            } catch (error) {
+                errorDiv.textContent = '網路錯誤: ' + error.message;
+                errorDiv.classList.add('show');
+            }
+        }
+
+        function copyText(elementId) {
+            const textarea = document.getElementById(elementId);
+            textarea.select();
+            document.execCommand('copy');
+
+            const btn = textarea.parentElement.querySelector('.copy-btn');
+            btn.textContent = '已複製!';
+            btn.classList.add('copied');
+
+            setTimeout(() => {
+                btn.textContent = '複製';
+                btn.classList.remove('copied');
+            }, 2000);
+        }
+
+        function clearText(elementId) {
+            document.getElementById(elementId).value = '';
+        }
+    </script>
+</body>
+</html>
