@@ -153,10 +153,15 @@
             <tr><td>h1. 標題</td><td># 標題</td><td>標題</td></tr>
             <tr><td>*粗體*</td><td>**粗體**</td><td>粗體</td></tr>
             <tr><td>_斜體_</td><td>*斜體*</td><td>斜體</td></tr>
-            <tr><td>* 項目</td><td>- 項目</td><td>列表</td></tr>
-            <tr><td># 項目</td><td>1. 項目</td><td>編號</td></tr>
+            <tr><td>+底線+</td><td>&lt;u&gt;底線&lt;/u&gt;</td><td>底線</td></tr>
+            <tr><td>-刪除線-</td><td>~~刪除線~~</td><td>刪除線</td></tr>
+            <tr><td>* 項目</td><td>- 項目</td><td>無序列表</td></tr>
+            <tr><td># 項目</td><td>1. 項目</td><td>有序列表</td></tr>
             <tr><td>"文字":url</td><td>[文字](url)</td><td>連結</td></tr>
-            <tr><td>@code@</td><td>`code`</td><td>程式碼</td></tr>
+            <tr><td>!image.png!</td><td>![](image.png)</td><td>圖片</td></tr>
+            <tr><td>@code@</td><td>`code`</td><td>行內程式碼</td></tr>
+            <tr><td>bq. 引言</td><td>> 引言</td><td>引用</td></tr>
+            <tr><td>---</td><td>---</td><td>水平線</td></tr>
         </table>
     </div>
 
@@ -198,71 +203,152 @@
             document.getElementById('help').classList.toggle('show');
         }
 
+        // Redmine → Markdown
         function r2m(t) {
             if (!t) return '';
             let r = t;
+
+            // 保護程式碼區塊
             const cb = [], ic = [];
             r = r.replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/g, (m,c) => { cb.push(c); return `__CB${cb.length-1}__`; });
             r = r.replace(/<pre>([\s\S]*?)<\/pre>/g, (m,c) => { cb.push(c); return `__CB${cb.length-1}__`; });
             r = r.replace(/@([^@\n]+)@/g, (m,c) => { ic.push(c); return `__IC${ic.length-1}__`; });
-            r = r.replace(/^(#+)\s+(.+)$/gm, (m,h,c) => `__OL__${'  '.repeat(h.length-1)}1. ${c}`);
-            r = r.replace(/^h([1-6])\.\s*(.+)$/gm, (m,n,c) => '#'.repeat(n) + ' ' + c);
+
+            // 有序列表 (# item) - 先處理避免與標題衝突
+            r = r.replace(/^(#+) +(.+)$/gm, (m,h,c) => `__OL__${'  '.repeat(h.length-1)}1. ${c}`);
+
+            // 標題 h1. ~ h6.
+            r = r.replace(/^h([1-6])\.\s*(.+)$/gm, (m,n,c) => '#'.repeat(parseInt(n)) + ' ' + c);
+
+            // 移除有序列表標記
             r = r.replace(/__OL__/g, '');
-            r = r.replace(/(?<!\S)\*([^\*\n]+)\*(?!\S)/g, '**$1**');
-            r = r.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, '*$1*');
-            r = r.replace(/(?<!\S)-([^\-\n]+)-(?!\S)/g, '~~$1~~');
-            r = r.replace(/(?<!\S)\+([^\+\n]+)\+(?!\S)/g, '<u>$1</u>');
+
+            // 粗斜體 _*text*_ → ***text***
+            r = r.replace(/_\*([^*]+)\*_/g, '***$1***');
+
+            // 粗體 *text* → **text** (不在行首，避免與列表衝突)
+            r = r.replace(/(\s|^)\*(\S[^*]*\S|\S)\*(?=\s|$|[.,;:!?])/gm, '$1**$2**');
+
+            // 斜體 _text_ → *text*
+            r = r.replace(/(\s|^)_(\S[^_]*\S|\S)_(?=\s|$|[.,;:!?])/gm, '$1*$2*');
+
+            // 底線 +text+ → <u>text</u>
+            r = r.replace(/(\s|^)\+(\S[^+]*\S|\S)\+(?=\s|$|[.,;:!?])/gm, '$1<u>$2</u>');
+
+            // 刪除線 -text- → ~~text~~
+            r = r.replace(/(\s|^)-(\S[^-]*\S|\S)-(?=\s|$|[.,;:!?])/gm, '$1~~$2~~');
+
+            // 連結 "text":url → [text](url)
             r = r.replace(/"([^"]+)":(\S+)/g, '[$1]($2)');
+
+            // Wiki 連結
             r = r.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '[$2]($1)');
             r = r.replace(/\[\[([^\]]+)\]\]/g, '[$1]($1)');
-            r = r.replace(/!([^\s!]+)!/g, '![]($1)');
-            r = r.replace(/^(\*+)\s+(.+)$/gm, (m,a,c) => '  '.repeat(a.length-1) + '- ' + c);
+
+            // 圖片 !image! → ![](image)
+            r = r.replace(/!>?([^\s!]+)!/g, '![]($1)');
+
+            // 無序列表 * item → - item
+            r = r.replace(/^(\*+) +(.+)$/gm, (m,a,c) => '  '.repeat(a.length-1) + '- ' + c);
+
+            // 區塊引言 bq. text → > text
             r = r.replace(/^bq\.\s*(.+)$/gm, '> $1');
+
+            // 段落對齊 (移除，Markdown 不支援)
+            r = r.replace(/^p[>=]\.\s*/gm, '');
+
+            // 表格
             r = r.replace(/((?:^\|.+\|\s*\n?)+)/gm, tb => {
                 const ls = tb.trim().split('\n'), rs = [];
                 for (const l of ls) {
                     if (l.includes('|_.')) {
-                        const cv = l.replace(/\|_\./g, '|');
+                        const cv = l.replace(/\|_\.\s*/g, '| ');
                         rs.push(cv);
-                        rs.push('|' + '---|'.repeat((cv.match(/\|/g)||[]).length - 1));
-                    } else rs.push(l);
+                        const cols = (cv.match(/\|/g)||[]).length - 1;
+                        rs.push('|' + ' --- |'.repeat(cols));
+                    } else {
+                        rs.push(l);
+                    }
                 }
                 return rs.join('\n');
             });
+
+            // 還原程式碼
             cb.forEach((c,i) => { r = r.replace(`__CB${i}__`, '```\n'+c+'\n```'); });
             ic.forEach((c,i) => { r = r.replace(`__IC${i}__`, '`'+c+'`'); });
+
             return r;
         }
 
+        // Markdown → Redmine
         function m2r(t) {
             if (!t) return '';
             let r = t;
+
+            // 保護程式碼區塊
             const cb = [], ic = [];
             r = r.replace(/```(\w*)\n([\s\S]*?)```/g, (m,l,c) => { cb.push({l,c}); return `__CB${cb.length-1}__`; });
             r = r.replace(/`([^`\n]+)`/g, (m,c) => { ic.push(c); return `__IC${ic.length-1}__`; });
+
+            // 圖片 (先處理，避免與連結衝突)
             r = r.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '!$2!');
-            r = r.replace(/^(#{1,6}) (.+)$/gm, (m,h,c) => `h${h.length}. ${c}`);
-            r = r.replace(/\*\*([^\*]+)\*\*/g, '__B__$1__EB__');
-            r = r.replace(/(?<!\*)\*([^\*]+)\*(?!\*)/g, '_$1_');
-            r = r.replace(/__B__(.+?)__EB__/g, '*$1*');
+
+            // 標題
+            r = r.replace(/^(#{1,6}) +(.+)$/gm, (m,h,c) => `h${h.length}. ${c}`);
+
+            // 粗斜體 ***text*** → _*text*_
+            r = r.replace(/\*\*\*([^*]+)\*\*\*/g, '_*$1*_');
+
+            // 粗體 **text** → *text* (用佔位符避免衝突)
+            r = r.replace(/\*\*([^*]+)\*\*/g, '__B__$1__EB__');
+
+            // 斜體 *text* → _text_
+            r = r.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '_$1_');
+
+            // 還原粗體
+            r = r.replace(/__B__([^_]+)__EB__/g, '*$1*');
+
+            // 刪除線 ~~text~~ → -text-
             r = r.replace(/~~([^~]+)~~/g, '-$1-');
+
+            // 底線 <u>text</u> → +text+
             r = r.replace(/<u>([^<]+)<\/u>/g, '+$1+');
+
+            // 連結 [text](url) → "text":url
             r = r.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '"$1":$2');
-            r = r.replace(/^(\s*)[-\*]\s+(.+)$/gm, (m,i,c) => '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
-            r = r.replace(/^(\s*)\d+\.\s+(.+)$/gm, (m,i,c) => '#'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
-            r = r.replace(/^>\s*(.+)$/gm, 'bq. $1');
+
+            // 無序列表
+            r = r.replace(/^(\s*)[-*] +(.+)$/gm, (m,i,c) => '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
+
+            // 有序列表
+            r = r.replace(/^(\s*)\d+\. +(.+)$/gm, (m,i,c) => '#'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
+
+            // 引用 > text → bq. text
+            r = r.replace(/^> +(.+)$/gm, 'bq. $1');
+
+            // 表格
             r = r.replace(/((?:^\|.+\|\s*\n?)+)/gm, tb => {
                 const ls = tb.trim().split('\n'), rs = [];
                 let first = true;
                 for (const l of ls) {
-                    if (/^\|[\s\-:|]+\|$/.test(l)) continue;
-                    if (first) { rs.push(l.replace(/\|([^|]+)/g, '|_.$1')); first = false; }
-                    else rs.push(l);
+                    if (/^\|[\s\-:|]+\|$/.test(l)) continue; // 跳過分隔行
+                    if (first) {
+                        rs.push(l.replace(/\|\s*([^|]*)/g, '|_. $1'));
+                        first = false;
+                    } else {
+                        rs.push(l);
+                    }
                 }
                 return rs.join('\n');
             });
-            cb.forEach(({l,c},i) => { r = r.replace(`__CB${i}__`, `<pre><code class="${l}">\n${c}</code></pre>`); });
+
+            // 還原程式碼
+            cb.forEach(({l,c},i) => {
+                const lang = l ? ` class="${l}"` : '';
+                r = r.replace(`__CB${i}__`, `<pre><code${lang}>\n${c}</code></pre>`);
+            });
             ic.forEach((c,i) => { r = r.replace(`__IC${i}__`, `@${c}@`); });
+
             return r;
         }
     </script>
