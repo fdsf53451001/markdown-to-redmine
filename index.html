@@ -303,9 +303,14 @@
                     // 跳過 Markdown 表格分隔行 (只有 |, -, :, 空格)
                     if (/^\|[\s\-:\|]+\|$/.test(line)) continue;
                     if (isFirst) {
-                        // 表頭：| cell | → |_. cell |
-                        const headerLine = line.replace(/\|\s*([^|]+?)\s*(?=\|)/g, '|_. $1 ');
-                        result.push(headerLine);
+                        // 表頭：把每個 | 後面加上 _.
+                        // | A | B | C | → |_. A |_. B |_. C |
+                        const cells = line.split('|');
+                        const headerCells = cells.map((cell, i) => {
+                            if (i === 0 || i === cells.length - 1) return cell; // 首尾空的
+                            return '_. ' + cell.trim() + ' ';
+                        });
+                        result.push(headerCells.join('|'));
                         isFirst = false;
                     } else {
                         result.push(line);
