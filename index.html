@@ -294,30 +294,38 @@
             r = r.replace(/^-{3,}$/gm, '__HR__');
             r = r.replace(/^\*{3,}$/gm, '__HR__');
 
-            // 表格 - 先處理，轉換表頭並移除分隔行
-            r = r.replace(/((?:^\|.+\|\s*$\n?)+)/gm, tb => {
-                const lines = tb.trim().split('\n');
-                const result = [];
-                let isFirst = true;
-                for (const line of lines) {
-                    // 跳過 Markdown 表格分隔行 (只有 |, -, :, 空格)
-                    if (/^\|[\s\-:\|]+\|$/.test(line)) continue;
-                    if (isFirst) {
-                        // 表頭：把每個 | 後面加上 _.
-                        // | A | B | C | → |_. A |_. B |_. C |
-                        const cells = line.split('|');
-                        const headerCells = cells.map((cell, i) => {
-                            if (i === 0 || i === cells.length - 1) return cell; // 首尾空的
-                            return '_. ' + cell.trim() + ' ';
-                        });
-                        result.push(headerCells.join('|'));
-                        isFirst = false;
-                    } else {
-                        result.push(line);
+            // 表格轉換 - 逐行處理
+            const lines = r.split('\n');
+            const newLines = [];
+            let tableStarted = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+
+                // 是否為表格行 (以 | 開頭和結尾)
+                if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+                    // 跳過分隔行 |---|---|---|
+                    if (/^[\|\-\s:]+$/.test(trimmed)) {
+                        continue;
                     }
+
+                    // 第一行表格 = 表頭
+                    if (!tableStarted) {
+                        tableStarted = true;
+                        // 轉換表頭: | A | B | → |_. A |_. B |
+                        const parts = trimmed.split('|').filter(p => p !== '');
+                        const header = '|_. ' + parts.map(p => p.trim()).join(' |_. ') + ' |';
+                        newLines.push(header);
+                    } else {
+                        newLines.push(line);
+                    }
+                } else {
+                    tableStarted = false;
+                    newLines.push(line);
                 }
-                return result.join('\n');
-            });
+            }
+            r = newLines.join('\n');
 
             // 圖片 (先處理，避免與連結衝突)
             r = r.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '!$2!');
