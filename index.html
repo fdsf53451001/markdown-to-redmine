@@ -131,9 +131,9 @@
 </head>
 <body>
     <div class="header">
-        <span class="lang-btn" id="from-label">Redmine</span>
+        <span class="lang-btn" id="from-label">Markdown</span>
         <button class="swap-btn" onclick="swap()" title="交換">⇄</button>
-        <span class="lang-btn" id="to-label">Markdown</span>
+        <span class="lang-btn" id="to-label">Redmine</span>
     </div>
 
     <div class="input-section">
@@ -166,12 +166,12 @@
     </div>
 
     <script>
-        let dir = 'r2m';
+        let dir = 'm2r';  // 預設 Markdown → Redmine
 
         function swap() {
-            dir = dir === 'r2m' ? 'm2r' : 'r2m';
-            document.getElementById('from-label').textContent = dir === 'r2m' ? 'Redmine' : 'Markdown';
-            document.getElementById('to-label').textContent = dir === 'r2m' ? 'Markdown' : 'Redmine';
+            dir = dir === 'm2r' ? 'r2m' : 'm2r';
+            document.getElementById('from-label').textContent = dir === 'm2r' ? 'Markdown' : 'Redmine';
+            document.getElementById('to-label').textContent = dir === 'm2r' ? 'Redmine' : 'Markdown';
             const inp = document.getElementById('input'), out = document.getElementById('output');
             [inp.value, out.value] = [out.value, inp.value];
             convert();
@@ -180,7 +180,7 @@
         function convert() {
             const inp = document.getElementById('input');
             document.getElementById('clear-btn').classList.toggle('show', inp.value.length > 0);
-            document.getElementById('output').value = dir === 'r2m' ? r2m(inp.value) : m2r(inp.value);
+            document.getElementById('output').value = dir === 'm2r' ? m2r(inp.value) : r2m(inp.value);
         }
 
         function clearAll() {
@@ -300,11 +300,12 @@
                 const result = [];
                 let isFirst = true;
                 for (const line of lines) {
-                    // 跳過分隔行 |---|---|
-                    if (/^\|[-:\|\s]+\|$/.test(line) && line.includes('--')) continue;
+                    // 跳過 Markdown 表格分隔行 (只有 |, -, :, 空格)
+                    if (/^\|[\s\-:\|]+\|$/.test(line)) continue;
                     if (isFirst) {
-                        // 表頭加上 |_.
-                        result.push(line.replace(/\|([^|]+)/g, (m, cell) => '|_.' + cell));
+                        // 表頭：| cell | → |_. cell |
+                        const headerLine = line.replace(/\|\s*([^|]+?)\s*(?=\|)/g, '|_. $1 ');
+                        result.push(headerLine);
                         isFirst = false;
                     } else {
                         result.push(line);
