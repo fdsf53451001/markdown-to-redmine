@@ -290,10 +290,33 @@
             r = r.replace(/```(\w*)\n([\s\S]*?)```/g, (m,l,c) => { cb.push({l,c}); return `__CB${cb.length-1}__`; });
             r = r.replace(/`([^`\n]+)`/g, (m,c) => { ic.push(c); return `__IC${ic.length-1}__`; });
 
+            // 保護水平線 (獨立一行的 --- 或 ***)
+            r = r.replace(/^-{3,}$/gm, '__HR__');
+            r = r.replace(/^\*{3,}$/gm, '__HR__');
+
+            // 表格 - 先處理，轉換表頭並移除分隔行
+            r = r.replace(/((?:^\|.+\|\s*$\n?)+)/gm, tb => {
+                const lines = tb.trim().split('\n');
+                const result = [];
+                let isFirst = true;
+                for (const line of lines) {
+                    // 跳過分隔行 |---|---|
+                    if (/^\|[-:\|\s]+\|$/.test(line) && line.includes('--')) continue;
+                    if (isFirst) {
+                        // 表頭加上 |_.
+                        result.push(line.replace(/\|([^|]+)/g, (m, cell) => '|_.' + cell));
+                        isFirst = false;
+                    } else {
+                        result.push(line);
+                    }
+                }
+                return result.join('\n');
+            });
+
             // 圖片 (先處理，避免與連結衝突)
             r = r.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '!$2!');
 
-            // 標題
+            // 標題 # → h1. (必須在列表之前處理)
             r = r.replace(/^(#{1,6}) +(.+)$/gm, (m,h,c) => `h${h.length}. ${c}`);
 
             // 粗斜體 ***text*** → _*text*_
@@ -317,8 +340,9 @@
             // 連結 [text](url) → "text":url
             r = r.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '"$1":$2');
 
-            // 無序列表
-            r = r.replace(/^(\s*)[-*] +(.+)$/gm, (m,i,c) => '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
+            // 無序列表 (- 或 * 開頭，後面要有空格)
+            r = r.replace(/^(\s*)[-] +(.+)$/gm, (m,i,c) => '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
+            r = r.replace(/^(\s*)\* +(.+)$/gm, (m,i,c) => '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
 
             // 有序列表
             r = r.replace(/^(\s*)\d+\. +(.+)$/gm, (m,i,c) => '#'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
@@ -326,21 +350,8 @@
             // 引用 > text → bq. text
             r = r.replace(/^> +(.+)$/gm, 'bq. $1');
 
-            // 表格
-            r = r.replace(/((?:^\|.+\|\s*\n?)+)/gm, tb => {
-                const ls = tb.trim().split('\n'), rs = [];
-                let first = true;
-                for (const l of ls) {
-                    if (/^\|[\s\-:|]+\|$/.test(l)) continue; // 跳過分隔行
-                    if (first) {
-                        rs.push(l.replace(/\|\s*([^|]*)/g, '|_. $1'));
-                        first = false;
-                    } else {
-                        rs.push(l);
-                    }
-                }
-                return rs.join('\n');
-            });
+            // 還原水平線
+            r = r.replace(/__HR__/g, '---');
 
             // 還原程式碼
             cb.forEach(({l,c},i) => {
