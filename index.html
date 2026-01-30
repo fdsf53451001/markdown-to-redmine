@@ -150,7 +150,7 @@
     <div class="help-content" id="help">
         <table>
             <tr><th>Redmine</th><th>Markdown</th><th>說明</th></tr>
-            <tr><td>h1. 標題</td><td># 標題</td><td>標題</td></tr>
+            <tr><td>h2. 標題</td><td># 標題</td><td>標題</td></tr>
             <tr><td>*粗體*</td><td>**粗體**</td><td>粗體</td></tr>
             <tr><td>_斜體_</td><td>*斜體*</td><td>斜體</td></tr>
             <tr><td>+底線+</td><td>&lt;u&gt;底線&lt;/u&gt;</td><td>底線</td></tr>
@@ -217,8 +217,11 @@
             // 有序列表 (# item) - 先處理避免與標題衝突
             r = r.replace(/^(#+) +(.+)$/gm, (m,h,c) => `__OL__${'  '.repeat(h.length-1)}1. ${c}`);
 
-            // 標題 h1. ~ h6.
-            r = r.replace(/^h([1-6])\.\s*(.+)$/gm, (m,n,c) => '#'.repeat(parseInt(n)) + ' ' + c);
+            // 標題 h2. → #, h3. → ## (往上移一級，與m2r對應)
+            r = r.replace(/^h([1-6])\.\s*(.+)$/gm, (m,n,c) => {
+                const level = Math.max(parseInt(n) - 1, 1);  // 往上移一級，最小1個#
+                return '#'.repeat(level) + ' ' + c;
+            });
 
             // 移除有序列表標記
             r = r.replace(/__OL__/g, '');
@@ -330,8 +333,14 @@
             // 圖片 (先處理，避免與連結衝突)
             r = r.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '!$2!');
 
-            // 標題 # → h1. (必須在列表之前處理)
-            r = r.replace(/^(#{1,6}) +(.+)$/gm, (m,h,c) => `h${h.length}. ${c}`);
+            // 標題 # → h2., ## → h3. (往下移一級，避免h1太大)
+            r = r.replace(/^(#{1,6}) +(.+)$/gm, (m,h,c) => {
+                const level = Math.min(h.length + 1, 6);  // 往下移一級，最大h6
+                return `h${level}. ${c}`;
+            });
+
+            // 確保標題後面有空行 (如果下一行不是空行，加一個空行)
+            r = r.replace(/^(h[1-6]\. .+)\n(?!\n|$)/gm, '$1\n\n');
 
             // 粗斜體 ***text*** → _*text*_
             r = r.replace(/\*\*\*([^*]+)\*\*\*/g, '_*$1*_');
