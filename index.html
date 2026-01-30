@@ -339,19 +339,8 @@
                 return `h${level}. ${c}`;
             });
 
-            // 確保標題後面有空行 (逐行處理)
-            {
-                const lns = r.split('\n');
-                const result = [];
-                for (let i = 0; i < lns.length; i++) {
-                    result.push(lns[i]);
-                    // 如果是標題行，且下一行存在且不是空行，加一個空行
-                    if (/^h[1-6]\. /.test(lns[i]) && i + 1 < lns.length && lns[i + 1].trim() !== '') {
-                        result.push('');
-                    }
-                }
-                r = result.join('\n');
-            }
+            // 確保標題後面有空行
+            r = r.replace(/^(h[1-6]\. .+)$/gm, '$1\n');
 
             // 無序列表 (- 或 * 開頭，後面要有空格) - 必須在 bold/italic 之前處理！
             r = r.replace(/^(\s*)[-] +(.+)$/gm, (m,i,c) => '__UL__' + '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
@@ -390,12 +379,12 @@
             // 還原水平線
             r = r.replace(/__HR__/g, '---');
 
-            // 還原程式碼
+            // 還原程式碼 (用函數避免 $ 特殊字元問題)
             cb.forEach(({l,c},i) => {
                 const lang = l ? ` class="${l}"` : '';
-                r = r.replace(`__CB${i}__`, `<pre><code${lang}>\n${c}</code></pre>`);
+                r = r.replace(`__CB${i}__`, () => `<pre><code${lang}>\n${c}</code></pre>`);
             });
-            ic.forEach((c,i) => { r = r.replace(`__IC${i}__`, `@${c}@`); });
+            ic.forEach((c,i) => { r = r.replace(`__IC${i}__`, () => `@${c}@`); });
 
             return r;
         }
