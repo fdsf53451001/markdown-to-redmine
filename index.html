@@ -293,33 +293,23 @@
             r = r.replace(/```(\w*)\n([\s\S]*?)```/g, (m,l,c) => { cb.push({l,c}); return `__CB${cb.length-1}__`; });
             r = r.replace(/`([^`\n]+)`/g, (m,c) => { ic.push(c); return `__IC${ic.length-1}__`; });
 
-            // 保護水平線 (獨立一行的 --- 或 ***)
+            // 保護水平線
             r = r.replace(/^-{3,}$/gm, '__HR__');
             r = r.replace(/^\*{3,}$/gm, '__HR__');
 
-            // 表格轉換 - 逐行處理
+            // 表格轉換
             const lines = r.split('\n');
             const newLines = [];
             let tableStarted = false;
-
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const trimmed = line.trim();
-
-                // 是否為表格行 (以 | 開頭和結尾)
                 if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-                    // 跳過分隔行 |---|---|---|
-                    if (/^[\|\-\s:]+$/.test(trimmed)) {
-                        continue;
-                    }
-
-                    // 第一行表格 = 表頭
+                    if (/^[\|\-\s:]+$/.test(trimmed)) continue;
                     if (!tableStarted) {
                         tableStarted = true;
-                        // 轉換表頭: | A | B | → |_. A |_. B |
                         const parts = trimmed.split('|').filter(p => p !== '');
-                        const header = '|_. ' + parts.map(p => p.trim()).join(' |_. ') + ' |';
-                        newLines.push(header);
+                        newLines.push('|_. ' + parts.map(p => p.trim()).join(' |_. ') + ' |');
                     } else {
                         newLines.push(line);
                     }
@@ -330,61 +320,71 @@
             }
             r = newLines.join('\n');
 
-            // 圖片 (先處理，避免與連結衝突)
+            // 圖片
             r = r.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '!$2!');
 
-            // 標題 # → h2., ## → h3. (往下移一級，避免h1太大)
+            // 標題 # → h2., ## → h3.
             r = r.replace(/^(#{1,6}) +(.+)$/gm, (m,h,c) => {
-                const level = Math.min(h.length + 1, 6);  // 往下移一級，最大h6
+                const level = Math.min(h.length + 1, 6);
                 return `h${level}. ${c}`;
             });
 
-            // 確保標題後面有空行
-            r = r.replace(/^(h[1-6]\. .+)$/gm, '$1\n');
-
-            // 無序列表 (- 或 * 開頭，後面要有空格) - 必須在 bold/italic 之前處理！
-            r = r.replace(/^(\s*)[-] +(.+)$/gm, (m,i,c) => '__UL__' + '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
-            r = r.replace(/^(\s*)\* +(.+)$/gm, (m,i,c) => '__UL__' + '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
+            // 無序列表 - 必須在 bold/italic 之前！
+            r = r.replace(/^(\s*)[-*] +(.+)$/gm, (m,indent,content) => {
+                const level = Math.floor(indent.length / 2) + 1;
+                return '__UL__' + '*'.repeat(level) + ' ' + content;
+            });
 
             // 有序列表
-            r = r.replace(/^(\s*)\d+\. +(.+)$/gm, (m,i,c) => '#'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
+            r = r.replace(/^(\s*)\d+\. +(.+)$/gm, (m,indent,content) => {
+                const level = Math.floor(indent.length / 2) + 1;
+                return '#'.repeat(level) + ' ' + content;
+            });
 
-            // 粗斜體 ***text*** → _*text*_ (不跨行)
+            // 粗斜體
             r = r.replace(/\*\*\*([^*\n]+)\*\*\*/g, '_*$1*_');
-
-            // 粗體 **text** → *text* (用佔位符避免衝突，不跨行)
-            r = r.replace(/\*\*([^*\n]+)\*\*/g, '__B__$1__EB__');
-
-            // 斜體 *text* → _text_ (不跨行)
+            // 粗體
+            r = r.replace(/\*\*([^*\n]+)\*\*/g, '*$1*');
+            // 斜體
             r = r.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '_$1_');
 
-            // 還原粗體
-            r = r.replace(/__B__([^_]+)__EB__/g, '*$1*');
-
-            // 還原無序列表標記
+            // 還原無序列表
             r = r.replace(/__UL__/g, '');
 
-            // 刪除線 ~~text~~ → -text- (不跨行)
+            // 刪除線
             r = r.replace(/~~([^~\n]+)~~/g, '-$1-');
-
-            // 底線 <u>text</u> → +text+
+            // 底線
             r = r.replace(/<u>([^<]+)<\/u>/g, '+$1+');
-
-            // 連結 [text](url) → "text":url
+            // 連結
             r = r.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '"$1":$2');
-
-            // 引用 > text → bq. text
+            // 引用
             r = r.replace(/^> +(.+)$/gm, 'bq. $1');
 
             // 還原水平線
             r = r.replace(/__HR__/g, '---');
 
-            // 還原程式碼 (用函數避免 $ 特殊字元問題)
+            // 還原程式碼
             cb.forEach(({l,c},i) => {
                 const lang = l ? ` class="${l}"` : '';
                 r = r.replace(`__CB${i}__`, () => `<pre><code${lang}>\n${c}</code></pre>`);
             });
             ic.forEach((c,i) => { r = r.replace(`__IC${i}__`, () => `@${c}@`); });
+
+            // 最後處理：確保標題後有空行，移除多餘空行
+            const finalLines = r.split('\n');
+            const result = [];
+            for (let i = 0; i < finalLines.length; i++) {
+                const line = finalLines[i];
+                result.push(line);
+                // 如果是標題，確保下一行是空行
+                if (/^h[1-6]\. /.test(line)) {
+                    if (i + 1 < finalLines.length && finalLines[i + 1].trim() !== '') {
+                        result.push('');
+                    }
+                }
+            }
+            r = result.join('\n');
+            r = r.replace(/\n{3,}/g, '\n\n');
 
             return r;
         }
