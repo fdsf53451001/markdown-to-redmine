@@ -353,33 +353,36 @@
                 r = result.join('\n');
             }
 
-            // 粗斜體 ***text*** → _*text*_
-            r = r.replace(/\*\*\*([^*]+)\*\*\*/g, '_*$1*_');
+            // 無序列表 (- 或 * 開頭，後面要有空格) - 必須在 bold/italic 之前處理！
+            r = r.replace(/^(\s*)[-] +(.+)$/gm, (m,i,c) => '__UL__' + '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
+            r = r.replace(/^(\s*)\* +(.+)$/gm, (m,i,c) => '__UL__' + '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
 
-            // 粗體 **text** → *text* (用佔位符避免衝突)
-            r = r.replace(/\*\*([^*]+)\*\*/g, '__B__$1__EB__');
+            // 有序列表
+            r = r.replace(/^(\s*)\d+\. +(.+)$/gm, (m,i,c) => '#'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
 
-            // 斜體 *text* → _text_
-            r = r.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '_$1_');
+            // 粗斜體 ***text*** → _*text*_ (不跨行)
+            r = r.replace(/\*\*\*([^*\n]+)\*\*\*/g, '_*$1*_');
+
+            // 粗體 **text** → *text* (用佔位符避免衝突，不跨行)
+            r = r.replace(/\*\*([^*\n]+)\*\*/g, '__B__$1__EB__');
+
+            // 斜體 *text* → _text_ (不跨行)
+            r = r.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '_$1_');
 
             // 還原粗體
             r = r.replace(/__B__([^_]+)__EB__/g, '*$1*');
 
-            // 刪除線 ~~text~~ → -text-
-            r = r.replace(/~~([^~]+)~~/g, '-$1-');
+            // 還原無序列表標記
+            r = r.replace(/__UL__/g, '');
+
+            // 刪除線 ~~text~~ → -text- (不跨行)
+            r = r.replace(/~~([^~\n]+)~~/g, '-$1-');
 
             // 底線 <u>text</u> → +text+
             r = r.replace(/<u>([^<]+)<\/u>/g, '+$1+');
 
             // 連結 [text](url) → "text":url
             r = r.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '"$1":$2');
-
-            // 無序列表 (- 或 * 開頭，後面要有空格)
-            r = r.replace(/^(\s*)[-] +(.+)$/gm, (m,i,c) => '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
-            r = r.replace(/^(\s*)\* +(.+)$/gm, (m,i,c) => '*'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
-
-            // 有序列表
-            r = r.replace(/^(\s*)\d+\. +(.+)$/gm, (m,i,c) => '#'.repeat(Math.floor(i.length/2)+1) + ' ' + c);
 
             // 引用 > text → bq. text
             r = r.replace(/^> +(.+)$/gm, 'bq. $1');
