@@ -372,12 +372,20 @@
             });
             ic.forEach((c,i) => { r = r.replace(`__IC${i}__`, () => `@${c}@`); });
 
-            // 最後處理：確保標題後有空行，移除多餘空行
+            // 最後處理
             const finalLines = r.split('\n');
             const result = [];
             for (let i = 0; i < finalLines.length; i++) {
-                const line = finalLines[i];
+                let line = finalLines[i];
+
+                // 去掉前導空格（Redmine 會把開頭有空格的行當成 code block）
+                // 但保留列表項目和 code block 標記
+                if (!line.match(/^(\*+|#+|<pre|<\/pre|\|)/) && !line.match(/^__CB\d+__$/)) {
+                    line = line.trimStart();
+                }
+
                 result.push(line);
+
                 // 如果是標題，確保下一行是空行
                 if (/^h[1-6]\. /.test(line)) {
                     if (i + 1 < finalLines.length && finalLines[i + 1].trim() !== '') {
